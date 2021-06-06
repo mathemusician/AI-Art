@@ -145,7 +145,7 @@ class CustomDataset(Dataset):
         """
 
         super().__init__(); self.transforms = T.Compose(transforms)
-
+        print(path)
         file_names_A = sorted(os.listdir(path + 'A/'), key = lambda x: int(x[: -4]))
         self.file_names_A = [path + 'A/' + file_name for file_name in file_names_A]
 
@@ -212,7 +212,8 @@ class DataModule(pl.LightningDataModule):
 
 
     def prepare_data(self):
-
+        pass
+        '''
         if self.dataset in os.listdir(self.compressed_dir):
             print(f"Dataset {self.dataset[:-4]} already exists!")
         else:
@@ -245,6 +246,7 @@ class DataModule(pl.LightningDataModule):
                 os.rmdir(src_dir)
 
             print(f"Files moved to appropiate folder!")
+        '''
 
 
     def setup(self, stage: str = None):
@@ -254,12 +256,13 @@ class DataModule(pl.LightningDataModule):
         """
 
         dwnld_dir = self.processed_dir + self.dataset[:-4]
+        # change here...
         trn_dir = dwnld_dir + "/Train/"
         tst_dir = dwnld_dir + "/Test/"
 
         if stage == 'fit' or stage is None:
-
-            dataset = CustomDataset(path = trn_dir, transforms = self.trn_tfms)
+            # training starts here
+            dataset = CustomDataset(path = './src/Pix2Pix/', transforms = self.trn_tfms)
             train_sz = int(len(dataset) * 0.9)
             valid_sz = len(dataset) - train_sz
 
@@ -267,21 +270,18 @@ class DataModule(pl.LightningDataModule):
             print(f"Size of the training dataset: {train_sz}, validation dataset: {valid_sz}")
 
         if stage == 'test' or stage is None:
-            self.test = CustomDataset(path = tst_dir, transforms = self.tst_tfms)
+            self.test = CustomDataset(path = './src/Pix2Pix/', transforms = self.tst_tfms)
             print(f"Size of the test dataset: {len(self.test)}")
 
 
     def train_dataloader(self):
-        return DataLoader(self.train, batch_size = self.trn_batch_sz, shuffle = True , num_workers = 16, 
-                          pin_memory = True)
+        return DataLoader(self.train, batch_size = self.trn_batch_sz, shuffle = True , num_workers = 0)
 
     def val_dataloader  (self):
-        return DataLoader(self.valid, batch_size = self.tst_batch_sz, shuffle = False, num_workers = 16, 
-                          pin_memory = True)
+        return DataLoader(self.valid, batch_size = self.tst_batch_sz, shuffle = False, num_workers = 0)
 
     def test_dataloader (self):
-        return DataLoader(self.test , batch_size = self.tst_batch_sz, shuffle = False, num_workers = 16, 
-                          pin_memory = True)
+        return DataLoader(self.test , batch_size = self.tst_batch_sz, shuffle = False, num_workers = 0)
 
 
 def show_image(image):
@@ -298,8 +298,8 @@ img_sz = 256
 url = "https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/facades.zip"
 
 # You can decrease the num_workers argument in {train/val/test}_dataloader
-datamodule = DataModule(url, root_dir = "./Dataset/Pix2Pix/", trn_batch_sz = 1, tst_batch_sz = 64)
-datamodule.prepare_data()
+datamodule = DataModule(url, root_dir = "./src/Pix2Pix/", trn_batch_sz = 1, tst_batch_sz = 1) #tst_batch_sz = 64
+#datamodule.prepare_data()
 datamodule.setup("fit")
 
 
@@ -623,7 +623,7 @@ class Loss:
 
 class Pix2Pix(pl.LightningModule):
 
-    def __init__(self, d_lr: float = 2e-4, g_lr: float = 2e-4, beta_1: float = 0.5, beta_2: float = 0.999, epoch_decay: int = 100):
+    def __init__(self, d_lr: float = 2e-4, g_lr: float = 2e-4, beta_1: float = 0.5, beta_2: float = 0.999, epoch_decay: int = 1):
 
         super().__init__()
 
@@ -649,7 +649,7 @@ class Pix2Pix(pl.LightningModule):
     def set_requires_grad(nets, requires_grad = False):
 
         """
-        Set requies_grad=Fasle for all the networks to avoid unnecessary computations
+        Set requies_grad=False for all the networks to avoid unnecessary computations
         Parameters:
             nets (network list)   -- a list of networks
             requires_grad (bool)  -- whether the networks require gradients or not
@@ -766,8 +766,9 @@ resume_from_checkpoint = None if TRAIN else "path/to/checkpoints/" # "./logs/Pix
 
 if TRAIN or RESTORE:
     
-    epochs = 200
-    epoch_decay = epochs // 2
+    epochs = 1
+    epoch_decay = 1
+    #epoch_decay = epochs // 2
     
     model = Pix2Pix(epoch_decay = epoch_decay)
     tb_logger = pl_loggers.TensorBoardLogger('logs/', name = "Pix2Pix", log_graph = True)
@@ -778,9 +779,17 @@ if TRAIN or RESTORE:
     
     # you can change the gpus argument to how many you have (I had only 1 :( )
     # Setting deterministic flag to True for full reproducibility
-    trainer = pl.Trainer(accelerator = 'ddp', gpus = -1, max_epochs = epochs, progress_bar_refresh_rate = 20, precision = 16, 
+    '''
+    trainer = pl.Trainer(max_epochs = epochs, progress_bar_refresh_rate = 20,
                          callbacks = callbacks, num_sanity_val_steps = 1, logger = tb_logger, resume_from_checkpoint = 
                          resume_from_checkpoint, log_every_n_steps = 25, profiler = True, deterministic = True)
+    '''
+    '''
+    trainer = pl.Trainer(max_epochs = epochs, progress_bar_refresh_rate = 20,
+                         callbacks = callbacks, num_sanity_val_steps = 1, logger = tb_logger,
+                         log_every_n_steps = 1, profiler = 'simple', deterministic = True)
+    '''
+    trainer = pl.Trainer(max_epochs = 1, gpus=None)
     
     trainer.fit(model, datamodule)
     
@@ -792,9 +801,9 @@ if TEST:
     options as well, so that you can use one which suits you best.
     """
     
-    trainer = pl.Trainer(gpus = -1, precision = 16, profiler = True)
+    trainer = pl.Trainer(gpus = None, profiler = 'simple')
     # load the checkpoint that you want to load
-    checkpoint_path = "path/to/checkpoints/" # "./logs/Pix2Pix/version_0/checkpoints/epoch=1.ckpt"
+    checkpoint_path = "./lightning_logs/version_15/checkpoints/epoch=19-step=39.ckpt" # "./logs/Pix2Pix/version_0/checkpoints/epoch=1.ckpt"
     
     model = Pix2Pix.load_from_checkpoint(checkpoint_path = checkpoint_path)
     model.freeze()
@@ -806,4 +815,6 @@ if TEST:
     trainer.test(model, test_dataloaders = test_data)
     # look tensorboard for the final results
     # You can also run an inference on a single image using the forward function defined above!!
+
+    
 

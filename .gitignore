@@ -1,1 +1,4 @@
 .vscode/*
+Dataset
+lightning_logs
+logs

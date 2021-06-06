@@ -813,6 +813,10 @@ if TEST:
     test_data = datamodule.test_dataloader()
 
     trainer.test(model, test_dataloaders = test_data)
+    # to do inference, do the following:
+    # model.forward(datamodule.train[0]['A'].unsqueeze(0))
+    # to show image:
+    T.functional.to_pil_image(model.forward(datamodule.train[0]['A'].unsqueeze(0)).squeeze(0)).show()
     # look tensorboard for the final results
     # You can also run an inference on a single image using the forward function defined above!!
 

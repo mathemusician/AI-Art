@@ -2,11 +2,7 @@
 import os
 import sys
 
-# to import help.py from previous folder
-up3 = os.path.abspath('../../..')
-sys.path.insert(0, up3)
-
-from help import getpath
+from getpaths import getpath
 
 import numpy as np
 import os, wget, zipfile, shutil

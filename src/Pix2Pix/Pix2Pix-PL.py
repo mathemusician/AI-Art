@@ -137,7 +137,7 @@ class Normalize(object):
 
 class CustomDataset(Dataset):
 
-    def __init__(self, path: str = None, transforms = None, max_sz: int = 1000):
+    def __init__(self, pathA: str = None, pathB: str = None, transforms = None, max_sz: int = 1000):
 
         """
         Parameters:
@@ -145,12 +145,12 @@ class CustomDataset(Dataset):
         """
 
         super().__init__(); self.transforms = T.Compose(transforms)
-        print(path)
-        file_names_A = sorted(os.listdir(path + 'A/'), key = lambda x: int(x[: -4]))
-        self.file_names_A = [path + 'A/' + file_name for file_name in file_names_A]
 
-        file_names_B = sorted(os.listdir(path + 'B/'), key = lambda x: int(x[: -4]))
-        self.file_names_B = [path + 'B/' + file_name for file_name in file_names_B]
+        file_names_A = sorted([i for i in pathA.ls() if i[-3:] == 'png'], key = lambda x: int(x[: -4]))
+        self.file_names_A = [pathA/file_name for file_name in file_names_A]
+
+        file_names_B = sorted([i for i in pathA.ls() if i[-3:] == 'png'], key = lambda x: int(x[: -4]))
+        self.file_names_B = [pathB/file_name for file_name in file_names_B]
 
         self.file_names_A = self.file_names_A[:max_sz]
         self.file_names_B = self.file_names_B[:max_sz]
@@ -259,18 +259,24 @@ class DataModule(pl.LightningDataModule):
         # change here...
         trn_dir = dwnld_dir + "/Train/"
         tst_dir = dwnld_dir + "/Test/"
+        # image paths
+        image_path = getpath('/Users/mosaicchurchhtx/Desktop/ScriptReader/data/images', custom=True)
+        pathA = image_path/'GAN_synthesized_images'/'train'
+        pathB = image_path/'black_and_white'/'train'
 
+        # training
         if stage == 'fit' or stage is None:
             # training starts here
-            dataset = CustomDataset(path = './src/Pix2Pix/', transforms = self.trn_tfms)
+            dataset = CustomDataset(pathA = pathA, pathB = pathB, transforms = self.trn_tfms)
             train_sz = int(len(dataset) * 0.9)
             valid_sz = len(dataset) - train_sz
 
             self.train, self.valid = random_split(dataset, [train_sz, valid_sz])
             print(f"Size of the training dataset: {train_sz}, validation dataset: {valid_sz}")
 
+        # validation
         if stage == 'test' or stage is None:
-            self.test = CustomDataset(path = './src/Pix2Pix/', transforms = self.tst_tfms)
+            self.test = CustomDataset(pathA = pathA.up(1)/'test', pathB = pathB.up(1)/'test', transforms = self.tst_tfms)
             print(f"Size of the test dataset: {len(self.test)}")
 
 
@@ -758,7 +764,7 @@ class Pix2Pix(pl.LightningModule):
 ###############################################################################################################################################
 
 
-TEST    = True
+TEST    = False
 TRAIN   = True
 RESTORE = False
 resume_from_checkpoint = None if TRAIN else "path/to/checkpoints/" # "./logs/Pix2Pix/version_0/checkpoints/epoch=1.ckpt"

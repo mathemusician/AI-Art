@@ -738,9 +738,9 @@ class Pix2Pix(pl.LightningModule):
 
 
 # image paths
-image_path = getpath('/Users/mosaicchurchhtx/Desktop/ScriptReader/data/images', custom=True)
-pathA = image_path/'GAN_synthesized_images'/'train'
-pathB = image_path/'black_and_white'/'train'
+image_path = getpath('content', custom=True)
+pathA = image_path/'GAN_synthesized_images'/'val'
+pathB = image_path/'black_and_white'/'val'
 
 img_sz = 256
 url = "https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/facades.zip"

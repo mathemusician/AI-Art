@@ -249,7 +249,7 @@ class DataModule(pl.LightningDataModule):
         '''
 
 
-    def setup(self, stage: str = None):
+    def setup(self, stage: str = None, pathA: str = None, pathB: str = None):
 
         """
         stage: fit/test
@@ -259,10 +259,6 @@ class DataModule(pl.LightningDataModule):
         # change here...
         trn_dir = dwnld_dir + "/Train/"
         tst_dir = dwnld_dir + "/Test/"
-        # image paths
-        image_path = getpath('/Users/mosaicchurchhtx/Desktop/ScriptReader/data/images', custom=True)
-        pathA = image_path/'GAN_synthesized_images'/'train'
-        pathB = image_path/'black_and_white'/'train'
 
         # training
         if stage == 'fit' or stage is None:
@@ -299,29 +295,6 @@ def get_random_sample(dataset):
 
 ###############################################################################################################################################
 
-
-img_sz = 256
-url = "https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/facades.zip"
-
-# You can decrease the num_workers argument in {train/val/test}_dataloader
-datamodule = DataModule(url, root_dir = "./src/Pix2Pix/", trn_batch_sz = 1, tst_batch_sz = 1) #tst_batch_sz = 64
-#datamodule.prepare_data()
-datamodule.setup("fit")
-
-
-print(f"Few random samples from the Training dataset!")
-
-sample = get_random_sample(datamodule.train)
-plt.subplot(1, 2, 1); show_image(sample['A'])
-plt.subplot(1, 2, 2); show_image(sample['B'])
-plt.show()
-
-print(f"Few random samples from the Validation dataset!")
-
-sample = get_random_sample(datamodule.valid)
-plt.subplot(1, 2, 1); show_image(sample['A'])
-plt.subplot(1, 2, 2); show_image(sample['B'])
-plt.show()
 
 
 ###############################################################################################################################################
@@ -764,10 +737,42 @@ class Pix2Pix(pl.LightningModule):
 ###############################################################################################################################################
 
 
+# image paths
+image_path = getpath('/Users/mosaicchurchhtx/Desktop/ScriptReader/data/images', custom=True)
+pathA = image_path/'GAN_synthesized_images'/'train'
+pathB = image_path/'black_and_white'/'train'
+
+img_sz = 256
+url = "https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/facades.zip"
+
+# You can decrease the num_workers argument in {train/val/test}_dataloader
+datamodule = DataModule(url, root_dir = "./src/Pix2Pix/", trn_batch_sz = 1, tst_batch_sz = 1) #tst_batch_sz = 64
+#datamodule.prepare_data()
+datamodule.setup("fit", pathA=pathA, pathB=pathB)
+
+
+print(f"Few random samples from the Training dataset!")
+
+sample = get_random_sample(datamodule.train)
+plt.subplot(1, 2, 1); show_image(sample['A'])
+plt.subplot(1, 2, 2); show_image(sample['B'])
+plt.show()
+
+print(f"Few random samples from the Validation dataset!")
+
+sample = get_random_sample(datamodule.valid)
+plt.subplot(1, 2, 1); show_image(sample['A'])
+plt.subplot(1, 2, 2); show_image(sample['B'])
+plt.show()
+
+
+
 TEST    = False
 TRAIN   = True
 RESTORE = False
 resume_from_checkpoint = None if TRAIN else "path/to/checkpoints/" # "./logs/Pix2Pix/version_0/checkpoints/epoch=1.ckpt"
+
+
 
 
 if TRAIN or RESTORE:
@@ -815,7 +820,7 @@ if TEST:
     model.freeze()
     
     # put the datamodule in test mode
-    datamodule.setup("test")
+    datamodule.setup("test", pathA=pathA, pathB=pathB)
     test_data = datamodule.test_dataloader()
 
     trainer.test(model, test_dataloaders = test_data)

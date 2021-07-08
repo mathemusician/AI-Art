@@ -1,4 +1,4 @@
-
+#%%
 from Imports import *
 warnings.simplefilter("ignore")
 
@@ -738,9 +738,16 @@ class Pix2Pix(pl.LightningModule):
 
 
 # image paths
-image_path = getpath('content', custom=True)
-pathA = image_path/'GAN_synthesized_images'/'val'
-pathB = image_path/'black_and_white'/'val'
+if os.path.exists(getpath('content', custom=True)):
+    # this is for google colab
+    image_path = getpath('content', custom=True)
+else:
+    # this is for my local drive
+    image_path = getpath()/'..'/'..'/'..'/'..'/'..'/'data'/'images'
+
+
+pathA = image_path/'GAN_synthesized_images'/'test'
+pathB = image_path/'black_and_white'/'test'
 
 img_sz = 256
 url = "https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/facades.zip"
@@ -765,14 +772,14 @@ plt.subplot(1, 2, 1); show_image(sample['A'])
 plt.subplot(1, 2, 2); show_image(sample['B'])
 plt.show()
 
+#%%
 
-
-TEST    = False
-TRAIN   = True
+TEST    = True
+TRAIN   = False
 RESTORE = False
 resume_from_checkpoint = None if TRAIN else "path/to/checkpoints/" # "./logs/Pix2Pix/version_0/checkpoints/epoch=1.ckpt"
 
-
+"""
 
 
 if TRAIN or RESTORE:
@@ -800,11 +807,11 @@ if TRAIN or RESTORE:
                          callbacks = callbacks, num_sanity_val_steps = 1, logger = tb_logger,
                          log_every_n_steps = 1, profiler = 'simple', deterministic = True)
     '''
-    trainer = pl.Trainer(max_epochs = 1, gpus=None)
+    trainer = pl.Trainer(max_epochs = 1, gpus=1)
     
     trainer.fit(model, datamodule)
     
-    
+"""
 if TEST:
     
     """
@@ -812,15 +819,19 @@ if TEST:
     options as well, so that you can use one which suits you best.
     """
     
-    trainer = pl.Trainer(gpus = None, profiler = 'simple')
-    # load the checkpoint that you want to load
-    checkpoint_path = "./lightning_logs/version_15/checkpoints/epoch=19-step=39.ckpt" # "./logs/Pix2Pix/version_0/checkpoints/epoch=1.ckpt"
-    
+    trainer = pl.Trainer(gpus = 1, profiler = 'simple')
+    # load the latest checkpoint
+    checkpoint_path = getpath()/'lightning_logs'
+    latest_folder = checkpoint_path.ls()[-1]
+    checkpoint_path = checkpoint_path/latest_folder/'checkpoints'
+    latest_file = checkpoint_path.ls()[-1]
+    checkpoint_path = checkpoint_path/latest_file
+
     model = Pix2Pix.load_from_checkpoint(checkpoint_path = checkpoint_path)
     model.freeze()
     
     # put the datamodule in test mode
-    datamodule.setup("test", pathA=pathA, pathB=pathB)
+    datamodule.setup("test", pathA=pathA/'..'/'test', pathB=pathB/'..'/'test')
     test_data = datamodule.test_dataloader()
 
     trainer.test(model, test_dataloaders = test_data)
@@ -828,6 +839,7 @@ if TEST:
     # model.forward(datamodule.train[0]['A'].unsqueeze(0))
     # to show image:
     T.functional.to_pil_image(model.forward(datamodule.train[0]['A'].unsqueeze(0)).squeeze(0)).show()
+    T.functional.to_pil_image(model.forward(datamodule.train[0]['A'].unsqueeze(0)).squeeze(0)).savefig()
     # look tensorboard for the final results
     # You can also run an inference on a single image using the forward function defined above!!
 

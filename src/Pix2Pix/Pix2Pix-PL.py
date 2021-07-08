@@ -842,7 +842,10 @@ if TEST:
     # model.forward(datamodule.train[0]['A'].unsqueeze(0))
     # to show image:
     # T.functional.to_pil_image(model.forward(datamodule.train[0]['A'].unsqueeze(0)).squeeze(0)).show()
-    print(dir(T.functional.to_pil_image(model.forward(datamodule.train[0]['A'].unsqueeze(0)).squeeze(0))))
-    T.functional.to_pil_image(model.forward(datamodule.train[0]['A'].unsqueeze(0)).squeeze(0)).write_image('new.png')
+    T.functional.to_pil_image(model.forward(datamodule.train[0]['A'].unsqueeze(0)).squeeze(0)).save('new.jpg')
+    # plt.imsave('new.jpg', np.array(T.functional.to_pil_image(model.forward(datamodule.train[0]['A'].unsqueeze(0)).squeeze(0))).astype(np.float))
     # look tensorboard for the final results
     # You can also run an inference on a single image using the forward function defined above!!
+
+    
+

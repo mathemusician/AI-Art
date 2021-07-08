@@ -775,11 +775,11 @@ plt.show()
 #%%
 
 TEST    = True
-TRAIN   = False
+TRAIN   = True
 RESTORE = False
 resume_from_checkpoint = None if TRAIN else "path/to/checkpoints/" # "./logs/Pix2Pix/version_0/checkpoints/epoch=1.ckpt"
 
-"""
+
 
 
 if TRAIN or RESTORE:
@@ -811,7 +811,7 @@ if TRAIN or RESTORE:
     
     trainer.fit(model, datamodule)
     
-"""
+
 if TEST:
     
     """
@@ -821,11 +821,14 @@ if TEST:
     
     trainer = pl.Trainer(gpus = 1, profiler = 'simple')
     # load the latest checkpoint
-    checkpoint_path = getpath()/'lightning_logs'
-    latest_folder = checkpoint_path.ls()[-1]
+    checkpoint_path = getpath(os.getcwd(), custom=True)/'lightning_logs'
+    checkpoint_path_list = sorted([int(x[8:]) for x in checkpoint_path.ls() if x[0] == 'v'])
+    latest_folder = 'version_' + str(checkpoint_path_list[-1])
     checkpoint_path = checkpoint_path/latest_folder/'checkpoints'
-    latest_file = checkpoint_path.ls()[-1]
+    checkpoint_path_list = sorted(checkpoint_path.ls())
+    latest_file = checkpoint_path_list[-1]
     checkpoint_path = checkpoint_path/latest_file
+    print('Using checkpoint path: ', checkpoint_path)
 
     model = Pix2Pix.load_from_checkpoint(checkpoint_path = checkpoint_path)
     model.freeze()
@@ -838,10 +841,8 @@ if TEST:
     # to do inference, do the following:
     # model.forward(datamodule.train[0]['A'].unsqueeze(0))
     # to show image:
-    T.functional.to_pil_image(model.forward(datamodule.train[0]['A'].unsqueeze(0)).squeeze(0)).show()
-    T.functional.to_pil_image(model.forward(datamodule.train[0]['A'].unsqueeze(0)).squeeze(0)).savefig()
+    # T.functional.to_pil_image(model.forward(datamodule.train[0]['A'].unsqueeze(0)).squeeze(0)).show()
+    print(dir(T.functional.to_pil_image(model.forward(datamodule.train[0]['A'].unsqueeze(0)).squeeze(0))))
+    T.functional.to_pil_image(model.forward(datamodule.train[0]['A'].unsqueeze(0)).squeeze(0)).write_image('new.png')
     # look tensorboard for the final results
     # You can also run an inference on a single image using the forward function defined above!!
-
-    
-

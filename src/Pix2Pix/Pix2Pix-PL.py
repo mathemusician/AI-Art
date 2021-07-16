@@ -746,8 +746,8 @@ else:
     image_path = getpath()/'..'/'..'/'..'/'..'/'..'/'data'/'images'
 
 
-pathA = image_path/'GAN_synthesized_images'/'test'
-pathB = image_path/'black_and_white'/'test'
+pathA = image_path/'GAN_synthesized_images'/'train'
+pathB = image_path/'black_and_white'/'train'
 
 img_sz = 256
 url = "https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/facades.zip"
@@ -775,7 +775,7 @@ plt.show()
 #%%
 
 TEST    = True
-TRAIN   = True
+TRAIN   = False
 RESTORE = False
 resume_from_checkpoint = None if TRAIN else "path/to/checkpoints/" # "./logs/Pix2Pix/version_0/checkpoints/epoch=1.ckpt"
 
@@ -784,8 +784,8 @@ resume_from_checkpoint = None if TRAIN else "path/to/checkpoints/" # "./logs/Pix
 
 if TRAIN or RESTORE:
     
-    epochs = 1
-    epoch_decay = 1
+    epochs = 4
+    epoch_decay = 2
     #epoch_decay = epochs // 2
     
     model = Pix2Pix(epoch_decay = epoch_decay)
@@ -807,7 +807,10 @@ if TRAIN or RESTORE:
                          callbacks = callbacks, num_sanity_val_steps = 1, logger = tb_logger,
                          log_every_n_steps = 1, profiler = 'simple', deterministic = True)
     '''
-    trainer = pl.Trainer(max_epochs = 1, gpus=1)
+    trainer = pl.Trainer(max_epochs = epochs, progress_bar_refresh_rate = 20,
+                         callbacks = callbacks, num_sanity_val_steps = 1,
+                         logger = tb_logger,
+                         log_every_n_steps = 1, profiler = 'simple', gpus=1)
     
     trainer.fit(model, datamodule)
     
@@ -821,7 +824,7 @@ if TEST:
     
     trainer = pl.Trainer(gpus = 1, profiler = 'simple')
     # load the latest checkpoint
-    checkpoint_path = getpath(os.getcwd(), custom=True)/'lightning_logs'
+    checkpoint_path = getpath(os.getcwd(), custom=True)/'logs/Pix2Pix'
     checkpoint_path_list = sorted([int(x[8:]) for x in checkpoint_path.ls() if x[0] == 'v'])
     latest_folder = 'version_' + str(checkpoint_path_list[-1])
     checkpoint_path = checkpoint_path/latest_folder/'checkpoints'
@@ -846,6 +849,3 @@ if TEST:
     # plt.imsave('new.jpg', np.array(T.functional.to_pil_image(model.forward(datamodule.train[0]['A'].unsqueeze(0)).squeeze(0))).astype(np.float))
     # look tensorboard for the final results
     # You can also run an inference on a single image using the forward function defined above!!
-
-    
-

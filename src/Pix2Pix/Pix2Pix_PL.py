@@ -27,10 +27,12 @@ class Resize(object):
         A, B = sample['A'], sample['B']
 
         A = tfm.resize(A, output_shape = self.image_size)
-        B = tfm.resize(B, output_shape = self.image_size)
-
         A = np.clip(A, a_min = 0., a_max = 1.)
-        B = np.clip(B, a_min = 0., a_max = 1.)
+
+        if type(B) != type(0):
+            B = tfm.resize(B, output_shape = self.image_size)
+            B = np.clip(B, a_min = 0., a_max = 1.)
+
 
         return {'A': A, 'B': B}
 
@@ -97,10 +99,14 @@ class To_Tensor(object):
         """
 
         A = np.transpose(sample['A'].astype(np.float, copy = True), (2, 0, 1))
-        B = np.transpose(sample['B'].astype(np.float, copy = True), (2, 0, 1))
 
         A = torch.tensor(A, dtype = torch.float)
-        B = torch.tensor(B, dtype = torch.float)
+        
+        if type(sample['B']) == type(0):
+            B = 0
+        else:
+            B = np.transpose(sample['B'].astype(np.float, copy = True), (2, 0, 1))
+            B = torch.tensor(B, dtype = torch.float)
 
         return {'A': A, 'B': B}
 
@@ -129,7 +135,9 @@ class Normalize(object):
 
         A, B = sample['A'], sample['B']
         A = self.transforms(A)
-        B = self.transforms(B)
+        
+        if type(B) != type(0):
+            B = self.transforms(B)
 
         return {'A': A, 'B': B}
 
@@ -137,35 +145,52 @@ class Normalize(object):
 
 class CustomDataset(Dataset):
 
-    def __init__(self, pathA: str = None, pathB: str = None, transforms = None, max_sz: int = 1000):
+    def __init__(self, stage: str = None, pathA: str = None, pathB: str = None, transforms = None, max_sz: int = 1000):
 
         """
         Parameters:
             transforms: a list of Transformations (Data augmentation)
         """
 
-        super().__init__(); self.transforms = T.Compose(transforms)
+        super().__init__()
+        
+        self.transforms = T.Compose(transforms)
 
-        file_names_A = sorted([i for i in pathA.ls() if i[-3:] == 'png'], key = lambda x: int(x[: -4]))
-        self.file_names_A = [pathA/file_name for file_name in file_names_A]
+        self.tea = stage
+        
+        if stage == 'fit' or stage == None:
+            file_names_A = sorted([i for i in pathA.ls() if i[-3:] == 'png'], key = lambda x: int(x[: -4]))
+            self.file_names_A = [pathA/file_name for file_name in file_names_A]
 
-        file_names_B = sorted([i for i in pathA.ls() if i[-3:] == 'png'], key = lambda x: int(x[: -4]))
-        self.file_names_B = [pathB/file_name for file_name in file_names_B]
+            file_names_B = sorted([i for i in pathA.ls() if i[-3:] == 'png'], key = lambda x: int(x[: -4]))
+            self.file_names_B = [pathB/file_name for file_name in file_names_B]
 
-        self.file_names_A = self.file_names_A[:max_sz]
-        self.file_names_B = self.file_names_B[:max_sz]
+            self.file_names_A = self.file_names_A[:max_sz]
+            self.file_names_B = self.file_names_B[:max_sz]
+        
+        if stage == 'test':
+            file_names_A = [i for i in pathA.ls() if i[-3:] == 'png']
+            self.file_names_A = [pathA/file_name for file_name in file_names_A]
 
 
     def __len__(self):
-        assert len(self.file_names_A) == len(self.file_names_B)
-        return len(self.file_names_A)
+        if self.tea == 'test':
+            return len(self.file_names_A)
+        else:
+            assert len(self.file_names_A) == len(self.file_names_B)
+            return len(self.file_names_A)
 
 
     def __getitem__(self, idx):
 
-        A = io.imread(self.file_names_A[idx])
-        B = io.imread(self.file_names_B[idx])
-        sample = self.transforms({'A': A, 'B': B})
+        if self.tea != 'test':
+            A = io.imread(self.file_names_A[idx])
+            B = io.imread(self.file_names_B[idx])
+            sample = self.transforms({'A': A, 'B': B})
+        else:
+            A = io.imread(self.file_names_A[idx])
+            B = 0 # np.zeros([256,256,4]) # np.array([[[0,1,0,1]]])
+            sample = self.transforms({'A': A, 'B': B})
 
         return sample
 
@@ -178,7 +203,7 @@ class DataModule(pl.LightningDataModule):
     https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/
     Authors don't follow a consistent format for all the datasets, so, it might not work for few
 
-    Implements the Lightining DataModule!
+    Implements the Lightning DataModule!
     """
 
     def __init__(self, url: str, root_dir: str = "./Dataset/CycleGAN/", img_sz: int = 256, trn_batch_sz: int = 4,
@@ -263,7 +288,7 @@ class DataModule(pl.LightningDataModule):
         # training
         if stage == 'fit' or stage is None:
             # training starts here
-            dataset = CustomDataset(pathA = pathA, pathB = pathB, transforms = self.trn_tfms)
+            dataset = CustomDataset(stage, pathA = pathA, pathB = pathB, transforms = self.trn_tfms)
             train_sz = int(len(dataset) * 0.9)
             valid_sz = len(dataset) - train_sz
 
@@ -272,7 +297,10 @@ class DataModule(pl.LightningDataModule):
 
         # validation
         if stage == 'test' or stage is None:
-            self.test = CustomDataset(pathA = pathA.up(1)/'test', pathB = pathB.up(1)/'test', transforms = self.tst_tfms)
+            self.test = CustomDataset(stage = stage, 
+                                      pathA = pathA, 
+                                      pathB = None, 
+                                      transforms = self.tst_tfms)
             print(f"Size of the test dataset: {len(self.test)}")
 
 
@@ -703,14 +731,15 @@ class Pix2Pix(pl.LightningModule):
         # log the results on tensorboard
         grid = torchvision.utils.make_grid(torch.cat(grid, 0), nrow = 6)
         self.logger.experiment.add_image('Grid', grid, self.current_epoch, dataformats = "CHW")
-        
+    
 
     def validation_step(self, batch, batch_idx):
         return self.shared_step(batch, 'val')
 
 
     def test_step(self, batch, batch_idx):
-        return self.shared_step(batch, 'test')
+        pass
+        # return self.shared_step(batch, 'test')
 
 
     def lr_lambda(self, epoch):
@@ -735,7 +764,7 @@ class Pix2Pix(pl.LightningModule):
 
     
 ###############################################################################################################################################
-
+SHOW_TRAIN_IMAGE_PREVIEW = False
 
 # image paths
 if os.path.exists(getpath('content', custom=True)):
@@ -755,30 +784,28 @@ url = "https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/facades.
 # You can decrease the num_workers argument in {train/val/test}_dataloader
 datamodule = DataModule(url, root_dir = "./src/Pix2Pix/", trn_batch_sz = 1, tst_batch_sz = 1) #tst_batch_sz = 64
 #datamodule.prepare_data()
-datamodule.setup("fit", pathA=pathA, pathB=pathB)
+datamodule.setup(stage="fit", pathA=pathA, pathB=pathB)
 
+if SHOW_TRAIN_IMAGE_PREVIEW == True:
+    print(f"Few random samples from the Training dataset!")
 
-print(f"Few random samples from the Training dataset!")
+    sample = get_random_sample(datamodule.train)
+    plt.subplot(1, 2, 1); show_image(sample['A'])
+    plt.subplot(1, 2, 2); show_image(sample['B'])
+    plt.show()
 
-sample = get_random_sample(datamodule.train)
-plt.subplot(1, 2, 1); show_image(sample['A'])
-plt.subplot(1, 2, 2); show_image(sample['B'])
-plt.show()
+    print(f"Few random samples from the Validation dataset!")
 
-print(f"Few random samples from the Validation dataset!")
-
-sample = get_random_sample(datamodule.valid)
-plt.subplot(1, 2, 1); show_image(sample['A'])
-plt.subplot(1, 2, 2); show_image(sample['B'])
-plt.show()
+    sample = get_random_sample(datamodule.valid)
+    plt.subplot(1, 2, 1); show_image(sample['A'])
+    plt.subplot(1, 2, 2); show_image(sample['B'])
+    plt.show()
 
 #%%
 
 TEST    = True
 TRAIN   = False
 RESTORE = False
-resume_from_checkpoint = None if TRAIN else "path/to/checkpoints/" # "./logs/Pix2Pix/version_0/checkpoints/epoch=1.ckpt"
-
 
 
 
@@ -810,11 +837,11 @@ if TRAIN or RESTORE:
     trainer = pl.Trainer(max_epochs = epochs, progress_bar_refresh_rate = 20,
                          callbacks = callbacks, num_sanity_val_steps = 1,
                          logger = tb_logger,
-                         log_every_n_steps = 1, profiler = 'simple', gpus=1)
+                         log_every_n_steps = 1, profiler = 'simple', gpus=0)
     
     trainer.fit(model, datamodule)
     
-
+'''
 if TEST:
     
     """
@@ -822,22 +849,17 @@ if TEST:
     options as well, so that you can use one which suits you best.
     """
     
-    trainer = pl.Trainer(gpus = 1, profiler = 'simple')
+    trainer = pl.Trainer(gpus = 0, profiler = 'simple')
     # load the latest checkpoint
-    checkpoint_path = getpath(os.getcwd(), custom=True)/'logs/Pix2Pix'
-    checkpoint_path_list = sorted([int(x[8:]) for x in checkpoint_path.ls() if x[0] == 'v'])
-    latest_folder = 'version_' + str(checkpoint_path_list[-1])
-    checkpoint_path = checkpoint_path/latest_folder/'checkpoints'
-    checkpoint_path_list = sorted(checkpoint_path.ls())
-    latest_file = checkpoint_path_list[-1]
-    checkpoint_path = checkpoint_path/latest_file
+    
+    checkpoint_path = getpath('/Users/mosaicchurchhtx/Downloads/last.ckpt', custom=True)
     print('Using checkpoint path: ', checkpoint_path)
 
     model = Pix2Pix.load_from_checkpoint(checkpoint_path = checkpoint_path)
     model.freeze()
     
     # put the datamodule in test mode
-    datamodule.setup("test", pathA=pathA/'..'/'test', pathB=pathB/'..'/'test')
+    datamodule.setup("test", pathA=pathA/'..'/'test', pathB=pathA/'..'/'test')
     test_data = datamodule.test_dataloader()
 
     trainer.test(model, test_dataloaders = test_data)
@@ -849,3 +871,4 @@ if TEST:
     # plt.imsave('new.jpg', np.array(T.functional.to_pil_image(model.forward(datamodule.train[0]['A'].unsqueeze(0)).squeeze(0))).astype(np.float))
     # look tensorboard for the final results
     # You can also run an inference on a single image using the forward function defined above!!
+'''

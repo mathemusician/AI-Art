@@ -230,36 +230,7 @@ class DataModule(pl.LightningDataModule):
 
     def prepare_data(self):
 
-        if self.dataset in os.listdir(self.compressed_dir):
-            print(f"Dataset {self.dataset[:-4]} already exists!")
-        else:
-            print(f"Downloading dataset {self.dataset[:-4]}!!")
-            wget.download(self.url, self.compressed_dir)
-            print(f"\nDataset {self.dataset[:-4]} downloaded. Extraction in progress!")
-
-            with zipfile.ZipFile(self.compressed_dir + self.dataset, 'r') as zip_ref:
-                zip_ref.extractall(self.processed_dir)
-            print(f"Extraction done!")
-
-            # you might need to modify the below code; it's not generic, but works for most of the datasets listed in that url.
-            dwnld_dir = self.processed_dir + self.dataset[:-4] + "/"
-            for folder in ["trainA/", "trainB/"]:
-
-                dest_dir = dwnld_dir
-                src_dir  = dwnld_dir + folder
-
-                dest_dir = dest_dir + "Train/" if folder[:-2] != "test" else dest_dir + "Test/"
-                dest_dir = dest_dir + "B/"     if folder[-2]  != "A"    else dest_dir + "A/"
-                os.makedirs(dest_dir, exist_ok = True)
-
-                orig_files = [src_dir  + file for file in os.listdir(src_dir)]
-                modf_files = [dest_dir + "{:06d}.jpg".format(i) for i, file in enumerate(orig_files)]
-
-                for orig_file, modf_file in zip(orig_files, modf_files):
-                    shutil.move(orig_file, modf_file)
-                os.rmdir(src_dir)
-
-            print(f"Files moved to appropiate folder!")
+        pass
 
 
     def setup(self, stage: str = None):
@@ -882,21 +853,6 @@ if __name__ == '__main__':
     datamodule.prepare_data()
     datamodule.setup("fit")
 
-
-    '''print(f"Few random samples from the Training dataset!")
-
-    sample = get_random_sample(datamodule.train)
-    plt.subplot(1, 2, 1); show_image(sample['A'])
-    plt.subplot(1, 2, 2); show_image(sample['B'])
-    plt.show()
-
-    print(f"Few random samples from the Validation dataset!")
-
-    sample = get_random_sample(datamodule.valid)
-    plt.subplot(1, 2, 1); show_image(sample['A'])
-    plt.subplot(1, 2, 2); show_image(sample['B'])
-    plt.show()'''
-
     TEST    = False
     TRAIN   = True
     RESTORE = False
@@ -906,7 +862,7 @@ if __name__ == '__main__':
 
     if TRAIN or RESTORE:
         
-        epochs = 20
+        epochs = 2
         epoch_decay = epochs // 2
         
         model = CycleGAN(epoch_decay = epoch_decay)

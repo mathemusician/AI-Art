@@ -145,11 +145,13 @@ class CustomDataset(Dataset):
 
         super().__init__(); self.transforms = T.Compose(transforms)
 
+        image_names = ['jpg','JPG','PEG','png','PNG','bmp']
+
         file_names_A = sorted(os.listdir(path + 'A/'))
-        self.file_names_A = [path + 'A/' + file_name for file_name in file_names_A]
+        self.file_names_A = [path + 'A/' + file_name for file_name in file_names_A if file_name[-3:] in image_names]
 
         file_names_B = sorted(os.listdir(path + 'B/'))
-        self.file_names_B = [path + 'B/' + file_name for file_name in file_names_B]
+        self.file_names_B = [path + 'B/' + file_name for file_name in file_names_B if file_name[-3:] in image_names]
 
         self.file_names_A = self.file_names_A[:max_sz]
         self.file_names_B = self.file_names_B[:max_sz]
@@ -840,8 +842,17 @@ class CycleGAN(pl.LightningModule):
         return [g_opt, d_A_opt, d_B_opt], [g_sch, d_A_sch, d_B_sch]
 
 
+def checkpoint_exists():
+    return True
+
+def get_latest_checkpoint():
+    return ''
+
 
 ############################################################################################################################################################
+
+
+
 
 if __name__ == '__main__':
 
@@ -849,11 +860,11 @@ if __name__ == '__main__':
     url = "https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/cezanne2photo.zip"
 
     # You can decrease the num_workers argument in {train/val/test}_dataloader
-    datamodule = DataModule(url, trn_batch_sz = 1, tst_batch_sz = 64)
+    datamodule = DataModule(url, trn_batch_sz = 1, tst_batch_sz = 1)
     datamodule.prepare_data()
     datamodule.setup("fit")
 
-    TEST    = False
+    TEST    = True
     TRAIN   = True
     RESTORE = False
 
@@ -875,9 +886,9 @@ if __name__ == '__main__':
         # you can change the gpus argument to how many you have (I had only 1 :( )
         # Set the deterministic flag to True for full reproducibility
         if using_gpu():
-            trainer = pl.Trainer(gpus=1)
+            trainer = pl.Trainer(gpus=1, max_epochs = epochs)
         else:
-            trainer = pl.Trainer(gpus=0)
+            trainer = pl.Trainer(gpus=0, max_epochs = epochs)
         
         '''
         trainer = pl.Trainer(accelerator = 'ddp', gpus = -1, max_epochs = epochs, progress_bar_refresh_rate = 20, precision = 16, 
@@ -894,10 +905,18 @@ if __name__ == '__main__':
         This is one of the many ways to run inference, but I would recommend you to look into the docs for other 
         options as well, so that you can use one which suits you best.
         """
-        
-        trainer = pl.Trainer(gpus = -1, precision = 16, profiler = True)
+
+        if checkpoint_exists() != True:
+            print('checkpoint has to exist')
+            raise FileNotFoundError
+
         # load the checkpoint that you want to load
-        checkpoint_path = "path/to/checkpoints/" # "./logs/CycleGAN/version_0/checkpoints/epoch=1.ckpt"
+        checkpoint_path = "" # "./logs/CycleGAN/version_0/checkpoints/epoch=1.ckpt"
+        
+        if using_gpu():
+            trainer = pl.Trainer(gpus = -1, precision = 16)
+        else:
+            trainer = pl.Trainer(gpus=0)
         
         model = CycleGAN.load_from_checkpoint(checkpoint_path = checkpoint_path)
         model.freeze()

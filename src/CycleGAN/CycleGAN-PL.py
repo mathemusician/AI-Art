@@ -846,7 +846,7 @@ class CycleGAN(pl.LightningModule):
 if __name__ == '__main__':
 
     img_sz = 512
-    url = "https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/horse2zebra.zip"
+    url = "https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/cezanne2photo.zip"
 
     # You can decrease the num_workers argument in {train/val/test}_dataloader
     datamodule = DataModule(url, trn_batch_sz = 1, tst_batch_sz = 64)

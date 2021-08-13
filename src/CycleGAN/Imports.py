@@ -8,8 +8,6 @@ from argparse import ArgumentParser
 from skimage import io as io, transform as tfm
 
 import matplotlib as mpl, matplotlib.pyplot as plt
-mpl.rcParams["figure.figsize"] = (8, 4)
-mpl.rcParams["axes.grid"     ] = False
 
 import torch
 import torch.nn as nn
@@ -29,4 +27,7 @@ import torchvision.models as models
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import LearningRateMonitor, Callback, ModelCheckpoint
+
 pl.seed_everything(42)
+
+from getpaths import getpath

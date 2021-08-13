@@ -145,10 +145,10 @@ class CustomDataset(Dataset):
 
         super().__init__(); self.transforms = T.Compose(transforms)
 
-        file_names_A = sorted(os.listdir(path + 'A/'), key = lambda x: int(x[: -4]))
+        file_names_A = sorted(os.listdir(path + 'A/'))
         self.file_names_A = [path + 'A/' + file_name for file_name in file_names_A]
 
-        file_names_B = sorted(os.listdir(path + 'B/'), key = lambda x: int(x[: -4]))
+        file_names_B = sorted(os.listdir(path + 'B/'))
         self.file_names_B = [path + 'B/' + file_name for file_name in file_names_B]
 
         self.file_names_A = self.file_names_A[:max_sz]
@@ -167,6 +167,15 @@ class CustomDataset(Dataset):
 
         return sample
 
+
+def using_gpu():
+    try:
+        torch.cuda.current_device()
+        # GPU is being used!
+        return True
+    except AttributeError:
+        # GPU is not being used!
+        return False
 
 
 class DataModule(pl.LightningDataModule):
@@ -208,6 +217,13 @@ class DataModule(pl.LightningDataModule):
         self.tst_tfms = [Resize(img_sz), To_Tensor(), Normalize()]
         self.trn_tfms = [Resize(jitter_sz), RandomCrop(img_sz), Random_Flip(), To_Tensor(), Normalize()]
 
+        if using_gpu():
+            self.num_workers = 16
+            self.pin_memory  = True
+        else:
+            self.num_workers = 0
+            self.pin_memory = False
+
 
     def prepare_data(self):
 
@@ -224,7 +240,7 @@ class DataModule(pl.LightningDataModule):
 
             # you might need to modify the below code; it's not generic, but works for most of the datasets listed in that url.
             dwnld_dir = self.processed_dir + self.dataset[:-4] + "/"
-            for folder in ["testA/", "testB/", "trainA/", "trainB/"]:
+            for folder in ["trainA/", "trainB/"]:
 
                 dest_dir = dwnld_dir
                 src_dir  = dwnld_dir + folder
@@ -268,13 +284,13 @@ class DataModule(pl.LightningDataModule):
 
 
     def train_dataloader(self):
-        return DataLoader(self.train, batch_size = self.trn_batch_sz, shuffle = True , num_workers = 16, pin_memory = True)
+        return DataLoader(self.train, batch_size = self.trn_batch_sz, shuffle = True , num_workers = self.num_workers, pin_memory = self.pin_memory)
 
     def val_dataloader  (self):
-        return DataLoader(self.valid, batch_size = self.tst_batch_sz, shuffle = False, num_workers = 16, pin_memory = True)
+        return DataLoader(self.valid, batch_size = self.tst_batch_sz, shuffle = False, num_workers = self.num_workers, pin_memory = self.pin_memory)
 
     def test_dataloader (self):
-        return DataLoader(self.test , batch_size = self.tst_batch_sz, shuffle = False, num_workers = 16, pin_memory = True)
+        return DataLoader(self.test , batch_size = self.tst_batch_sz, shuffle = False, num_workers = self.num_workers, pin_memory = self.pin_memory)
 
 
 
@@ -286,30 +302,6 @@ def get_random_sample(dataset):
 
 
 ############################################################################################################################################################
-
-
-img_sz = 512
-url = "https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/cezanne2photo.zip"
-
-# You can decrease the num_workers argument in {train/val/test}_dataloader
-datamodule = DataModule(url, trn_batch_sz = 1, tst_batch_sz = 64)
-datamodule.prepare_data()
-datamodule.setup("fit")
-
-
-print(f"Few random samples from the Training dataset!")
-
-sample = get_random_sample(datamodule.train)
-plt.subplot(1, 2, 1); show_image(sample['A'])
-plt.subplot(1, 2, 2); show_image(sample['B'])
-plt.show()
-
-print(f"Few random samples from the Validation dataset!")
-
-sample = get_random_sample(datamodule.valid)
-plt.subplot(1, 2, 1); show_image(sample['A'])
-plt.subplot(1, 2, 2); show_image(sample['B'])
-plt.show()
 
 
 ############################################################################################################################################################
@@ -877,54 +869,86 @@ class CycleGAN(pl.LightningModule):
 
 ############################################################################################################################################################
 
+if __name__ == '__main__':
 
-TEST    = True
-TRAIN   = True
-RESTORE = False
-resume_from_checkpoint = None if TRAIN else "path/to/checkpoints/" # "./logs/CycleGAN/version_0/checkpoints/epoch=1.ckpt"
+    img_sz = 512
+    url = "https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/grumpifycat.zip"
+
+    # You can decrease the num_workers argument in {train/val/test}_dataloader
+    datamodule = DataModule(url, trn_batch_sz = 1, tst_batch_sz = 64)
+    datamodule.prepare_data()
+    datamodule.setup("fit")
 
 
-if TRAIN or RESTORE:
-    
-    epochs = 200
-    epoch_decay = epochs // 2
-    
-    model = CycleGAN(epoch_decay = epoch_decay)
-    tb_logger = pl_loggers.TensorBoardLogger('logs/', name = "CycleGAN", log_graph = True)
-    
-    lr_logger = LearningRateMonitor(logging_interval = 'epoch')
-    checkpoint_callback = ModelCheckpoint(monitor = "g_tot_val_loss", save_top_k = 3, period = 2, save_last = True)
-    callbacks = [lr_logger, checkpoint_callback]
-    
-    # you can change the gpus argument to how many you have (I had only 1 :( )
-    # Set the deterministic flag to True for full reproducibility
-    trainer = pl.Trainer(accelerator = 'ddp', gpus = -1, max_epochs = epochs, progress_bar_refresh_rate = 20, precision = 16, 
-                         callbacks = callbacks, num_sanity_val_steps = 1, logger = tb_logger, resume_from_checkpoint = 
-                         resume_from_checkpoint, log_every_n_steps = 25, profiler = True, deterministic = True)
-    
-    trainer.fit(model, datamodule)
-    
-    
-if TEST:
-    
-    """
-    This is one of the many ways to run inference, but I would recommend you to look into the docs for other 
-    options as well, so that you can use one which suits you best.
-    """
-    
-    trainer = pl.Trainer(gpus = -1, precision = 16, profiler = True)
-    # load the checkpoint that you want to load
-    checkpoint_path = "path/to/checkpoints/" # "./logs/CycleGAN/version_0/checkpoints/epoch=1.ckpt"
-    
-    model = CycleGAN.load_from_checkpoint(checkpoint_path = checkpoint_path)
-    model.freeze()
-    
-    # put the datamodule in test mode
-    datamodule.setup("test")
-    test_data = datamodule.test_dataloader()
+    '''print(f"Few random samples from the Training dataset!")
 
-    trainer.test(model, test_dataloaders = test_data)
-    # look tensorboard for the final results
-    # You can also run an inference on a single image using the forward function defined above!!
-    
-    
+    sample = get_random_sample(datamodule.train)
+    plt.subplot(1, 2, 1); show_image(sample['A'])
+    plt.subplot(1, 2, 2); show_image(sample['B'])
+    plt.show()
+
+    print(f"Few random samples from the Validation dataset!")
+
+    sample = get_random_sample(datamodule.valid)
+    plt.subplot(1, 2, 1); show_image(sample['A'])
+    plt.subplot(1, 2, 2); show_image(sample['B'])
+    plt.show()'''
+
+    TEST    = False
+    TRAIN   = True
+    RESTORE = False
+
+    resume_from_checkpoint = None if TRAIN else "path/to/checkpoints/" # "./logs/CycleGAN/version_0/checkpoints/epoch=1.ckpt"
+
+
+    if TRAIN or RESTORE:
+        
+        epochs = 20
+        epoch_decay = epochs // 2
+        
+        model = CycleGAN(epoch_decay = epoch_decay)
+        tb_logger = pl_loggers.TensorBoardLogger('logs/', name = "CycleGAN", log_graph = True)
+        
+        lr_logger = LearningRateMonitor(logging_interval = 'epoch')
+        checkpoint_callback = ModelCheckpoint(monitor = "g_tot_val_loss", save_top_k = 3, period = 2, save_last = True)
+        callbacks = [lr_logger, checkpoint_callback]
+        
+        # you can change the gpus argument to how many you have (I had only 1 :( )
+        # Set the deterministic flag to True for full reproducibility
+        if using_gpu():
+            trainer = pl.Trainer(gpus=1)
+        else:
+            trainer = pl.Trainer(gpus=0)
+        
+        '''
+        trainer = pl.Trainer(accelerator = 'ddp', gpus = -1, max_epochs = epochs, progress_bar_refresh_rate = 20, precision = 16, 
+                            callbacks = callbacks, num_sanity_val_steps = 1, logger = tb_logger, resume_from_checkpoint = 
+                            resume_from_checkpoint, log_every_n_steps = 25, profiler = True, deterministic = True)
+        '''
+        
+        trainer.fit(model, datamodule)
+        
+        
+    if TEST:
+        
+        """
+        This is one of the many ways to run inference, but I would recommend you to look into the docs for other 
+        options as well, so that you can use one which suits you best.
+        """
+        
+        trainer = pl.Trainer(gpus = -1, precision = 16, profiler = True)
+        # load the checkpoint that you want to load
+        checkpoint_path = "path/to/checkpoints/" # "./logs/CycleGAN/version_0/checkpoints/epoch=1.ckpt"
+        
+        model = CycleGAN.load_from_checkpoint(checkpoint_path = checkpoint_path)
+        model.freeze()
+        
+        # put the datamodule in test mode
+        datamodule.setup("test")
+        test_data = datamodule.test_dataloader()
+
+        trainer.test(model, test_dataloaders = test_data)
+        # look tensorboard for the final results
+        # You can also run an inference on a single image using the forward function defined above!!
+        
+        
